@@ -1,0 +1,26 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':common')
+}
+
+application {
+    mainClass = 'chat.client.ClientMain'
+}
+
+// ./gradlew runClient                        -> localhost
+// ./gradlew runClient -Pserver=192.168.1.20  -> server en otra máquina
+tasks.register('runClient', JavaExec) {
+    group = 'chat'
+    description = 'Arranca un cliente CLI usando config.client'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = projectDir
+    standardInput = System.in
+
+    def host = project.findProperty('server') ?: 'localhost'
+    def port = project.findProperty('port') ?: '10000'
+    args '--Ice.Config=config.client', "--ChatServer.Proxy=ChatServer:tcp -h ${host} -p ${port}"
+}

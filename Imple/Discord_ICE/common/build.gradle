@@ -1,0 +1,8 @@
+plugins {
+    id 'java-library'        // sin esto, "api" no existe
+    id 'com.zeroc.gradle.ice-builder.slice'
+}
+
+dependencies {
+    api "com.zeroc:ice:${iceVersion}"
+}

@@ -1,0 +1,4 @@
+rootProject.name = 'Discord_ICE'
+include 'common'   // contrato Slice (.ice) → genera el código Java compartido
+include 'server'   // servidor Ice
+include 'client'   // cliente CLI

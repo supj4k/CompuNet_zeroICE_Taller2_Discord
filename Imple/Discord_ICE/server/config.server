@@ -1,0 +1,13 @@
+# Sin -h escucha en TODAS las interfaces (necesario para la demo en red)
+ChatAdapter.Endpoints=tcp -p 10000
+
+# Por defecto Ice usa 1 hilo; con callbacks eso causa bloqueos
+Ice.ThreadPool.Server.Size=4
+Ice.ThreadPool.Server.SizeMax=16
+
+# Tamaño máximo de mensaje en KB (por defecto 1024). Relevante para RF-04
+#Ice.MessageSizeMax=1024
+
+# Trazas para depurar (0 = apagado)
+Ice.Trace.Network=0
+Ice.Warn.Connections=1

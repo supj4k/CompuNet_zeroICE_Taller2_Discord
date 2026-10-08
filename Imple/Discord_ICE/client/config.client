@@ -1,0 +1,6 @@
+# Valor por defecto; runClient lo sobrescribe con -Pserver=<ip>
+ChatServer.Proxy=ChatServer:tcp -h localhost -p 10000
+
+#Ice.MessageSizeMax=1024
+Ice.Trace.Network=0
+Ice.Warn.Connections=1

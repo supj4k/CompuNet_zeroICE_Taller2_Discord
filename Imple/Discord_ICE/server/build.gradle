@@ -1,0 +1,22 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':common')
+}
+
+application {
+    mainClass = 'chat.server.ServerMain'
+}
+
+// ./gradlew runServer
+tasks.register('runServer', JavaExec) {
+    group = 'chat'
+    description = 'Arranca el servidor Ice usando config.server'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = projectDir                 // para que encuentre config.server
+    args '--Ice.Config=config.server'
+    standardInput = System.in
+}
