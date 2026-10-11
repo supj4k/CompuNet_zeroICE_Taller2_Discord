@@ -11,7 +11,8 @@ public class ChatServerI implements ChatServer {
 
     // RF-05 (Andrés): señalización de llamadas 1 a 1
     final CallService callService = new CallService(sessions);
-
+    // RF-04 (Andrés): transferencia de archivos
+    final FileService fileService = new FileService(sessions);
     private static final int MAX_NICK_LENGTH = 20;
 
     // ---------- RF-01 (JD) ----------
@@ -114,7 +115,7 @@ public class ChatServerI implements ChatServer {
     @Override
     public void sendFileChunkToUser(String nickname, String to, FileChunk chunk, Current current)
             throws NotLoggedIn, UserNotFound {
-        throw new UnsupportedOperationException("TODO RF-04");
+        fileService.sendToUser(nickname, to, chunk, current);
     }
 
     @Override
