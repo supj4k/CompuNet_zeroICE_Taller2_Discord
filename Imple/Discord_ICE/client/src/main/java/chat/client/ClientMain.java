@@ -54,8 +54,10 @@ public class ClientMain {
             // llama por la misma conexión TCP que abrimos. Se registra ANTES del login porque
             // el servidor guarda el proxy durante login.
             ObjectAdapter adapter = communicator.createObjectAdapter("");
+            CallManager calls = new CallManager(); //se crea esta nueva variable local para crear bien el constructor
+            //de clientCallBack correctamente
             ClientCallbackPrx callback = ClientCallbackPrx.uncheckedCast(
-                    adapter.addWithUUID(new ClientCallbackI()));
+                    adapter.addWithUUID(new ClientCallbackI(calls)));
             adapter.activate();
 
             Connection connection = server.ice_getConnection();
@@ -70,7 +72,7 @@ public class ClientMain {
                 }
             });
 
-            new ChatCli(server, callback, communicator).run();
+            new ChatCli(server, callback, communicator,calls).run();
         }
     }
 
@@ -79,14 +81,16 @@ public class ClientMain {
         private final ChatServerPrx server;
         private final ClientCallbackPrx callback;
         private final Communicator communicator;
+        private final CallManager calls; //aun no tendra llamadas en el cli pero es para tener nocion de las llamadas 1 a 1
         private final BufferedReader in =
                 new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
         private String nickname;
 
-        ChatCli(ChatServerPrx server, ClientCallbackPrx callback, Communicator communicator) {
+        ChatCli(ChatServerPrx server, ClientCallbackPrx callback, Communicator communicator, CallManager calls) {
             this.server = server;
             this.callback = callback;
             this.communicator = communicator;
+            this.calls = calls;
         }
 
         void run() {
