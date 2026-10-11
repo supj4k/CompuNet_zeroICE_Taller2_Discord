@@ -17,9 +17,13 @@ import java.time.format.DateTimeFormatter;
  * No debe lanzar excepciones ni hacer llamadas bloqueantes al servidor.
  */
 public class ClientCallbackI implements ClientCallback {
-
+    private final CallManager callManager; // se crea esta variable para llamar toda lo logica de llamadas
     private static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
+
+    public ClientCallbackI(CallManager callManager) {
+        this.callManager = callManager;
+    }
 
     static String time(long epochMillis) {
         return TIME.format(Instant.ofEpochMilli(epochMillis));
@@ -57,22 +61,22 @@ public class ClientCallbackI implements ClientCallback {
     // ---------- RF-05 (Andrés) ----------
     @Override
     public void onIncomingCall(String callId, String caller, VoiceEndpoint callerEndpoint, Current current) {
-        // TODO RF-05
+        callManager.onIncomingCall(callId,caller,callerEndpoint);
     }
 
     @Override
     public void onCallAccepted(String callId, VoiceEndpoint calleeEndpoint, Current current) {
-        // TODO RF-05
+       callManager.onCallAccepted(callId,calleeEndpoint);
     }
 
     @Override
     public void onCallRejected(String callId, String by, Current current) {
-        // TODO RF-05
+        callManager.onCallRejected(callId,by);
     }
 
     @Override
     public void onCallEnded(String callId, String by, Current current) {
-        // TODO RF-05
+        callManager.onCallEnded(callId,by);
     }
 
     // ---------- RF-06 (Emmanuel) ----------
