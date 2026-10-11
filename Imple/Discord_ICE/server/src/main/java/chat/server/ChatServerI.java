@@ -9,6 +9,9 @@ public class ChatServerI implements ChatServer {
     // Para exigir sesión en otros RF: sessions.require(nickname, current) -> NotLoggedIn
     final SessionRegistry sessions = new SessionRegistry();
 
+    // RF-05 (Andrés): señalización de llamadas 1 a 1
+    final CallService callService = new CallService(sessions);
+
     private static final int MAX_NICK_LENGTH = 20;
 
     // ---------- RF-01 (JD) ----------
@@ -124,25 +127,25 @@ public class ChatServerI implements ChatServer {
     @Override
     public String startCall(String nickname, String to, VoiceEndpoint myEndpoint, Current current)
             throws NotLoggedIn, UserNotFound, UserBusy {
-        throw new UnsupportedOperationException("TODO RF-05");
+        return callService.startCall(nickname, to, myEndpoint, current);
     }
 
     @Override
     public void acceptCall(String nickname, String callId, VoiceEndpoint myEndpoint, Current current)
             throws NotLoggedIn, CallNotFound {
-        throw new UnsupportedOperationException("TODO RF-05");
+        callService.acceptCall(nickname, callId, myEndpoint, current);
     }
 
     @Override
     public void rejectCall(String nickname, String callId, Current current)
             throws NotLoggedIn, CallNotFound {
-        throw new UnsupportedOperationException("TODO RF-05");
+        callService.rejectCall(nickname, callId, current);
     }
 
     @Override
     public void hangup(String nickname, String callId, Current current)
             throws NotLoggedIn, CallNotFound {
-        throw new UnsupportedOperationException("TODO RF-05");
+        callService.hangup(nickname, callId, current);
     }
 
     // ---------- RF-06 (Emmanuel) ----------

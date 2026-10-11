@@ -22,6 +22,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
+import ChatApp.CallNotFound;
+import ChatApp.UserBusy;
+import ChatApp.VoiceEndpoint;
+import java.net.SocketException;
 
 public class ClientMain {
 
@@ -81,7 +85,7 @@ public class ClientMain {
         private final ChatServerPrx server;
         private final ClientCallbackPrx callback;
         private final Communicator communicator;
-        private final CallManager calls; //aun no tendra llamadas en el cli pero es para tener nocion de las llamadas 1 a 1
+        private final CallManager calls; // estado y audio de la llamada 1 a 1, compartido con ClientCallbackI
         private final BufferedReader in =
                 new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
         private String nickname;
@@ -150,6 +154,12 @@ public class ClientMain {
                     case "/quit" -> {
                         return false;
                     }
+                    // ---------- RF-05 (Andrés) ----------
+                    case "/call" -> startCall(parts);
+                    case "/accept" -> acceptCall();
+                    case "/reject" -> rejectCall();
+                    case "/hangup" -> hangup();
+                    case "/mute" -> toggleMute();
                     default -> System.out.println("[CLIENT] Comando desconocido. /help para ver comandos.");
                 }
             }
@@ -161,6 +171,10 @@ public class ClientMain {
             System.out.println("  /msg <nick> <texto>  mensaje privado");
             System.out.println("  /logout              cerrar sesión (permite entrar con otro nick)");
             System.out.println("  /quit                cerrar sesión y salir");
+            System.out.println("  /call <nick>         llamar por voz a un usuario");
+            System.out.println("  /accept | /reject    contestar o rechazar una llamada entrante");
+            System.out.println("  /hangup              colgar (o cancelar si aún está sonando)");
+            System.out.println("  /mute                silenciar / activar el micrófono en llamada");
         }
 
         private void printUsers() {
@@ -184,11 +198,113 @@ public class ClientMain {
                 System.out.println("[CLIENT] " + e.reason);
             }
         }
+        // ================== RF-05 (Andrés): llamadas 1 a 1 ==================
+
+        /** /call <nick>: abre mi puerto UDP y le pide al server que llame al otro. */
+        private void startCall(String[] parts) {
+            if (parts.length < 2) {
+                System.out.println("[LLAMADA] Uso: /call <nick>");
+                return;
+            }
+            String to = parts[1];
+            if (to.equals(nickname)) {
+                System.out.println("[LLAMADA] No puedes llamarte a ti mismo.");
+                return;
+            }
+            if (!calls.isIdle()) {
+                System.out.println("[LLAMADA] Ya estás en una llamada. Usa /hangup primero.");
+                return;
+            }
+            try {
+                VoiceEndpoint me = calls.prepareLocalEndpoint();   // abre el socket ANTES de avisar
+                String callId = server.startCall(nickname, to, me);
+                calls.outgoingStarted(callId, to);
+            } catch (NotLoggedIn | UserNotFound | UserBusy e) {
+                System.out.println("[LLAMADA] " + e.reason);
+                calls.reset();                                     // cierra el socket que abrimos
+            } catch (SocketException e) {
+                System.out.println("[LLAMADA] No se pudo abrir el puerto UDP: " + e.getMessage());
+            } catch (com.zeroc.Ice.UnknownException e) {
+                System.out.println("[LLAMADA] El servidor no pudo procesar la llamada.");
+                calls.reset();
+            }
+        }
+
+        /** /accept: abre mi puerto UDP, se lo manda al server y arranca el audio. */
+        private void acceptCall() {
+            String callId = calls.incomingCallId();
+            if (callId == null) {
+                System.out.println("[LLAMADA] No tienes llamadas entrantes.");
+                return;
+            }
+            try {
+                VoiceEndpoint me = calls.prepareLocalEndpoint();
+                server.acceptCall(nickname, callId, me);
+                calls.accepted();                                  // aquí arranca el audio
+            } catch (NotLoggedIn | CallNotFound e) {
+                System.out.println("[LLAMADA] " + e.reason);       // p. ej. el otro ya colgó
+                calls.reset();
+            } catch (SocketException e) {
+                System.out.println("[LLAMADA] No se pudo abrir el puerto UDP: " + e.getMessage());
+            } catch (com.zeroc.Ice.UnknownException e) {
+                System.out.println("[LLAMADA] El servidor no pudo procesar la llamada.");
+                calls.reset();
+            }
+        }
+
+        /** /reject: rechaza la llamada que está sonando. */
+        private void rejectCall() {
+            String callId = calls.incomingCallId();
+            if (callId == null) {
+                System.out.println("[LLAMADA] No tienes llamadas entrantes.");
+                return;
+            }
+            try {
+                server.rejectCall(nickname, callId);
+            } catch (NotLoggedIn | CallNotFound e) {
+                // la llamada ya no existe en el server: igual la limpiamos aquí
+            } catch (com.zeroc.Ice.LocalException  e) {
+                System.out.println("[LLAMADA] El servidor no pudo procesar el rechazo.");
+            } finally {
+                calls.reset();                                     // pase lo que pase, quedo libre
+                System.out.println("[LLAMADA] Llamada rechazada.");
+            }
+        }
+
+        /** /hangup: cuelga una llamada activa o cancela una que está sonando. */
+        private void hangup() {
+            String callId = calls.currentCallId();
+            if (callId == null) {
+                System.out.println("[LLAMADA] No estás en ninguna llamada.");
+                return;
+            }
+            try {
+                server.hangup(nickname, callId);
+            } catch (NotLoggedIn | CallNotFound e) {
+                // ya no existe en el server: igual colgamos localmente
+            } catch (com.zeroc.Ice.LocalException  e) {
+                System.out.println("[LLAMADA] El servidor no pudo procesar el colgado.");
+            } finally {
+                calls.reset();                                     // para audio y cierra socket
+                System.out.println("[LLAMADA] Colgaste.");
+            }
+        }
+
+        /** /mute: local, no pasa por el server. */
+        private void toggleMute() {
+            if (calls.currentCallId() == null) {
+                System.out.println("[LLAMADA] No estás en ninguna llamada.");
+                return;
+            }
+            boolean muted = calls.toggleMute();
+            System.out.println(muted ? "[LLAMADA] Micrófono silenciado." : "[LLAMADA] Micrófono activo.");
+        }
 
         private void logout() {
             if (nickname == null) {
                 return;
             }
+            if (calls.currentCallId() != null) hangup();   // RF-05: no dejar una llamada abierta
             try {
                 server.logout(nickname);
                 System.out.println("[CLIENT] Sesión cerrada.");
