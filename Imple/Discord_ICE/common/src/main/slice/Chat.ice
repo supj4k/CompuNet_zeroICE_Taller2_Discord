@@ -5,17 +5,20 @@ module ChatApp {
     exception ChatError{
         string reason;
     };
-    // RF-01 req de JD con sus excepciones
-    exception NickNameInUse extends ChatError{
+    // Excepciones de RF-01 (JD)
+    exception NickNameInUse extends ChatError {
         string nickname;
     };
-    exception InvalidNickname extends ChatError{};
-    exception NotLoggedIn extends ChatError {};  //lanza excepcion si no hace login
 
-    //excepcion de RF01 RF04 y RF05, es decir JD y Andres
-    exception UserNotFound extends ChatError{
-        string nickname;  //no existe el user o se desconecto
+    exception InvalidNickname extends ChatError {};
+
+    exception NotLoggedIn extends ChatError {};
+
+    // Excepción compartida: RF-01, RF-04 y RF-05 es decir JD y Andres
+    exception UserNotFound extends ChatError {
+        string nickname;
     };
+
     //RF-03 req De Emmanuel sus excepciones
     exception RoomAlreadyExists extends ChatError{
         string room; //lanza esta excepcion si el nombre de la
@@ -43,13 +46,13 @@ module ChatApp {
 
 
     //STRUCTS los datos que viajan juntos
-    //RF02 y RF03 Jd y Emmanuel
-    struct ChatMessage{
-        string sender;
-        string room; //"" si el mensaje es privado
-        string text;
-        long timestamp;
-    };
+   // RF-02 y RF-03 (JD y Emmanuel)
+   struct ChatMessage {
+       string sender;
+       string room; // "" si el mensaje es privado
+       string text;
+       long timestamp;
+   };
     //RF04 un bloque de archivos de andres
     struct FileChunk {
             string transferId;         // UUID que genera el emisor: agrupa los chunks del mismo archivo
@@ -74,13 +77,12 @@ module ChatApp {
     //4. CALLBACK
     interface ClientCallback {
 
-         //RF-01: presencia JD
-         void onUserJoined(string nickname);
-         void onUserLeft(string nickname);
+       void onUserJoined(string nickname);
+           void onUserLeft(string nickname);
 
-          // RF-02 y RF-03 (JD y emmanuel) los mensajes
-          void onPrivateMessage(ChatMessage msg);
-          void onRoomMessage(ChatMessage msg);
+           // RF-02 y RF-03 (JD y Emmanuel)
+           void onPrivateMessage(ChatMessage msg);
+           void onRoomMessage(ChatMessage msg);
 
           // RF-04 archivos andres
           // room = "" si fue enviado en privado
