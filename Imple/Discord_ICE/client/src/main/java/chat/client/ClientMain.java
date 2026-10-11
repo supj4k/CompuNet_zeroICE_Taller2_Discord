@@ -35,8 +35,7 @@ public class ClientMain {
                 return;
             }
 
-            String reply = server.ping(System.getProperty("user.name", "anon"));
-            System.out.println("[CLIENT] Respuesta: " + reply);
+
         }
     }
 }
