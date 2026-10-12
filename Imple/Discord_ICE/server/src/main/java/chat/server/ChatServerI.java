@@ -142,7 +142,7 @@ public class ChatServerI implements ChatServer {
     @Override
     public void sendFileChunkToUser(String nickname, String to, FileChunk chunk, Current current)
             throws NotLoggedIn, UserNotFound {
-        throw new UnsupportedOperationException("TODO RF-04");
+        fileService.sendToUser(nickname, to, chunk, current);
     }
 
     @Override
