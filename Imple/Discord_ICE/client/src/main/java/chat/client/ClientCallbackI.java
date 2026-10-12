@@ -5,6 +5,7 @@ import ChatApp.ClientCallback;
 import ChatApp.FileChunk;
 import ChatApp.Participant;
 import ChatApp.VoiceEndpoint;
+import chat.client.files.FileAssembler;
 import com.zeroc.Ice.Current;
 
 import java.time.Instant;
@@ -18,11 +19,13 @@ import java.time.format.DateTimeFormatter;
  */
 public class ClientCallbackI implements ClientCallback {
     private final CallManager callManager; // se crea esta variable para llamar toda lo logica de llamadas
+    private final FileAssembler files;
     private static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
 
-    public ClientCallbackI(CallManager callManager) {
+    public ClientCallbackI(CallManager callManager, FileAssembler files) {
         this.callManager = callManager;
+        this.files = files;
     }
 
     static String time(long epochMillis) {
@@ -55,7 +58,21 @@ public class ClientCallbackI implements ClientCallback {
     // ---------- RF-04 (Andrés) ----------
     @Override
     public void onFileChunk(String sender, String room, FileChunk chunk, Current current) {
-        // TODO RF-04
+        String origen = room.isEmpty() ? sender : sender + " en #" + room;
+        try {
+            if (chunk.chunkIndex == 0) {
+                System.out.println("[ARCHIVO] Recibiendo '" + chunk.fileName + "' de " + origen
+                        + " (" + chunk.totalSize / 1024 + " KB)...");
+            }
+            java.nio.file.Path done = files.accept(chunk);
+            if (done != null) {
+                System.out.println("[ARCHIVO] Recibido '" + chunk.fileName + "' de " + origen
+                        + " -> " + done.toAbsolutePath());
+            }
+        } catch (java.io.IOException e) {
+            // regla de JD: el callback no lanza excepciones; avisamos y seguimos
+            System.out.println("[ARCHIVO] Error recibiendo '" + chunk.fileName + "': " + e.getMessage());
+        }
     }
 
     // ---------- RF-05 (Andrés) ----------

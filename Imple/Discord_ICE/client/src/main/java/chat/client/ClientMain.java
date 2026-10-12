@@ -6,6 +6,8 @@ import ChatApp.InvalidNickname;
 import ChatApp.NickNameInUse;
 import ChatApp.NotLoggedIn;
 import ChatApp.UserNotFound;
+import chat.client.files.FileAssembler;
+import chat.client.files.FileChunker;
 import com.zeroc.Ice.ACMClose;
 import com.zeroc.Ice.ACMHeartbeat;
 import com.zeroc.Ice.Communicator;
@@ -60,8 +62,9 @@ public class ClientMain {
             ObjectAdapter adapter = communicator.createObjectAdapter("");
             CallManager calls = new CallManager(); //se crea esta nueva variable local para crear bien el constructor
             //de clientCallBack correctamente
+            FileAssembler files = new FileAssembler(java.nio.file.Path.of("received"));   // RF-04
             ClientCallbackPrx callback = ClientCallbackPrx.uncheckedCast(
-                    adapter.addWithUUID(new ClientCallbackI(calls)));
+                    adapter.addWithUUID(new ClientCallbackI(calls,files)));
             adapter.activate();
 
             Connection connection = server.ice_getConnection();
@@ -160,6 +163,8 @@ public class ClientMain {
                     case "/reject" -> rejectCall();
                     case "/hangup" -> hangup();
                     case "/mute" -> toggleMute();
+                    // ---------- RF-04 (Andrés) ----------
+                    case "/sendfile" -> sendFile(parts);
                     default -> System.out.println("[CLIENT] Comando desconocido. /help para ver comandos.");
                 }
             }
@@ -175,6 +180,7 @@ public class ClientMain {
             System.out.println("  /accept | /reject    contestar o rechazar una llamada entrante");
             System.out.println("  /hangup              colgar (o cancelar si aún está sonando)");
             System.out.println("  /mute                silenciar / activar el micrófono en llamada");
+            System.out.println("  /sendfile <nick> <ruta>  enviar un archivo a un usuario");
         }
 
         private void printUsers() {
@@ -197,6 +203,49 @@ public class ClientMain {
             } catch (NotLoggedIn | UserNotFound e) {
                 System.out.println("[CLIENT] " + e.reason);
             }
+
+        }
+        // ================== RF-04 (Andrés): archivos ==================
+
+        /** /sendfile <nick> <ruta>: parte el archivo y manda los chunks en un hilo aparte. */
+        private void sendFile(String[] parts) {
+            if (parts.length < 3) {
+                System.out.println("[ARCHIVO] Uso: /sendfile <nick> <ruta del archivo>");
+                return;
+            }
+            String to = parts[1];
+            java.nio.file.Path file = java.nio.file.Path.of(parts[2].trim().replace("\"", ""));
+            if (to.equals(nickname)) {
+                System.out.println("[ARCHIVO] No puedes enviarte un archivo a ti mismo.");
+                return;
+            }
+            if (!java.nio.file.Files.isRegularFile(file)) {
+                System.out.println("[ARCHIVO] No existe el archivo: " + file.toAbsolutePath());
+                return;
+            }
+
+            final String me = nickname;   // por si hace /logout mientras se envía
+            Thread sender = new Thread(() -> {
+                long start = System.currentTimeMillis();
+                int[] count = {0};
+                try {
+                    System.out.println("[ARCHIVO] Enviando '" + file.getFileName() + "' a " + to + "...");
+                    FileChunker.split(file, chunk -> {
+                        server.sendFileChunkToUser(me, to, chunk);
+                        count[0]++;
+                    });
+                    System.out.println("[ARCHIVO] Enviado '" + file.getFileName() + "' a " + to + " ("
+                            + count[0] + " chunks, " + (System.currentTimeMillis() - start) + " ms)");
+                } catch (NotLoggedIn | UserNotFound e) {
+                    System.out.println("[ARCHIVO] " + e.reason);
+                } catch (com.zeroc.Ice.LocalException e) {
+                    System.out.println("[ARCHIVO] Error de red enviando '" + file.getFileName() + "': " + e.ice_id());
+                } catch (Exception e) {
+                    System.out.println("[ARCHIVO] No se pudo leer el archivo: " + e.getMessage());
+                }
+            }, "file-sender");
+            sender.setDaemon(true);
+            sender.start();
         }
         // ================== RF-05 (Andrés): llamadas 1 a 1 ==================
 
