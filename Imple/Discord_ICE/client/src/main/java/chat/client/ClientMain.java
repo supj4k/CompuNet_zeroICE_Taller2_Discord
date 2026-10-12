@@ -26,6 +26,9 @@ import ChatApp.CallNotFound;
 import ChatApp.UserBusy;
 import ChatApp.VoiceEndpoint;
 import java.net.SocketException;
+import ChatApp.RoomAlreadyExists;
+import ChatApp.RoomNotFound;
+import ChatApp.NotRoomMember;
 
 public class ClientMain {
 
@@ -154,6 +157,12 @@ public class ClientMain {
                     case "/quit" -> {
                         return false;
                     }
+                    //-----------RF-03 (Emmanuel) --------
+                    case "/createRoom" -> createRoom(parts);
+                    case "/rooms" -> printRooms();
+                    case "/join" -> joinRoom(parts);
+                    case "/leave" -> leaveRoom(parts);
+                    case "/mesageRoom" -> sendToRoom(parts); 
                     // ---------- RF-05 (Andrés) ----------
                     case "/call" -> startCall(parts);
                     case "/accept" -> acceptCall();
@@ -312,6 +321,65 @@ public class ClientMain {
                 // el servidor ya limpia la sesión al cerrarse la conexión
             }
             nickname = null;
+        }
+
+        // ---------- RF-03 (Emmanuel) ----------
+
+        private void createRoom(String[] parts) {
+            if (parts.length < 2 || parts[1].isBlank()) {
+                System.out.println("[CLIENT] Uso: /createRoom <sala>");
+                return;
+            }
+            try {
+                server.createRoom(nickname, parts[1]);
+                System.out.println("[CLIENT] Sala '" + parts[1] + "' creada.");
+            } catch (NotLoggedIn | RoomAlreadyExists e) {
+                System.out.println("[CLIENT] " + e.reason);
+            }
+        }
+
+        private void printRooms() {
+            System.out.println("[CLIENT] Salas: " + String.join(", ", server.listRooms()));
+        }
+
+        private void joinRoom(String[] parts) {
+            if (parts.length < 2 || parts[1].isBlank()) {
+                System.out.println("[CLIENT] Uso: /join <sala>");
+                return;
+            }
+            try {
+                server.joinRoom(nickname, parts[1]);
+                System.out.println("[CLIENT] Te uniste a '" + parts[1] + "'.");
+            } catch (NotLoggedIn | RoomNotFound e) {
+                System.out.println("[CLIENT] " + e.reason);
+            }
+        }
+
+        private void leaveRoom(String[] parts) {
+            if (parts.length < 2 || parts[1].isBlank()) {
+                System.out.println("[CLIENT] Uso: /leave <sala>");
+                return;
+            }
+            try {
+                server.leaveRoom(nickname, parts[1]);
+                System.out.println("[CLIENT] Saliste de '" + parts[1] + "'.");
+            } catch (NotLoggedIn | RoomNotFound | NotRoomMember e) {
+                System.out.println("[CLIENT] " + e.reason);
+            }
+        }
+
+        // Sin confirmación local: el eco llega por ClientCallbackI.onRoomMessage,
+        // igual que a cualquier otro miembro de la sala.
+        private void sendToRoom(String[] parts) {
+            if (parts.length < 3 || parts[2].isBlank()) {
+                System.out.println("[CLIENT] Uso: /room <sala> <texto>");
+                return;
+            }
+            try {
+                server.sendToRoom(nickname, parts[1], parts[2]);
+            } catch (NotLoggedIn | RoomNotFound | NotRoomMember e) {
+                System.out.println("[CLIENT] " + e.reason);
+            }
         }
     }
 }

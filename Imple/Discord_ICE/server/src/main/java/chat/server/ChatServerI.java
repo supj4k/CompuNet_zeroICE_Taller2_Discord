@@ -12,6 +12,8 @@ public class ChatServerI implements ChatServer {
     // RF-05 (Andrés): señalización de llamadas 1 a 1
     final CallService callService = new CallService(sessions);
 
+    final RoomRegister roomRegister = new RoomRegister(sessions);
+
     private static final int MAX_NICK_LENGTH = 20;
 
     // ---------- RF-01 (JD) ----------
@@ -84,30 +86,54 @@ public class ChatServerI implements ChatServer {
     @Override
     public void createRoom(String nickname, String room, Current current)
             throws NotLoggedIn, RoomAlreadyExists {
-        throw new UnsupportedOperationException("TODO RF-03");
+        sessions.require(nickname, current);
+        if (!roomRegister.createRoom(room, nickname)) {
+            throw new RoomAlreadyExists("La sala '" + room + "' ya existe", room);
+        }
     }
 
     @Override
     public String[] listRooms(Current current) {
-        throw new UnsupportedOperationException("TODO RF-03");
+        return roomRegister.listRooms();
     }
 
     @Override
     public void joinRoom(String nickname, String room, Current current)
             throws NotLoggedIn, RoomNotFound {
-        throw new UnsupportedOperationException("TODO RF-03");
+        sessions.require(nickname, current);
+        if (!roomRegister.joinRoom(room, nickname)) {
+            throw new RoomNotFound("La sala '" + room + "' no existe", room);
+        }
     }
 
     @Override
     public void leaveRoom(String nickname, String room, Current current)
             throws NotLoggedIn, RoomNotFound, NotRoomMember {
-        throw new UnsupportedOperationException("TODO RF-03");
+        sessions.require(nickname, current);
+        String leave = roomRegister.leaveRoom(room, nickname);
+        if (leave.equals("No existe")) {
+            throw new RoomNotFound("La sala '" + room + "' no existe", room);
+        } else if (leave.equals("No pertenece")) {
+            throw new NotRoomMember(nickname + " no pertenece a la sala '" + room + "'", room);
+        }
     }
 
+    // Valida membresía sin tocar nada y recién después arma el mensaje, para no construir
+    // un ChatMessage que al final no se va a mandar.
     @Override
     public void sendToRoom(String nickname, String room, String text, Current current)
             throws NotLoggedIn, RoomNotFound, NotRoomMember {
-        throw new UnsupportedOperationException("TODO RF-03");
+        SessionRegistry.Session sender = sessions.require(nickname, current);
+        String check = roomRegister.checkStatus(room, nickname);
+        if (check.equals("Correcto")) {
+            ChatMessage msg = new ChatMessage(sender.nickname, room, text == null ? "" : text,
+                    System.currentTimeMillis());
+            roomRegister.sendMessage(sender, room, msg);
+        } else if (check.equals("No existe")) {
+            throw new RoomNotFound("La sala '" + room + "' no existe", room);
+        } else if (check.equals("No pertenece")) {
+            throw new NotRoomMember(nickname + " no pertenece a la sala '" + room + "'", room);
+        }
     }
 
     // ---------- RF-04 (Andrés) ----------
