@@ -28,6 +28,10 @@ import ChatApp.CallNotFound;
 import ChatApp.UserBusy;
 import ChatApp.VoiceEndpoint;
 import java.net.SocketException;
+import ChatApp.RoomAlreadyExists;
+import ChatApp.RoomNotFound;
+import ChatApp.NotRoomMember;
+import ChatApp.Participant;
 
 public class ClientMain {
 
@@ -62,9 +66,9 @@ public class ClientMain {
             ObjectAdapter adapter = communicator.createObjectAdapter("");
             CallManager calls = new CallManager(); //se crea esta nueva variable local para crear bien el constructor
             //de clientCallBack correctamente
-            FileAssembler files = new FileAssembler(java.nio.file.Path.of("received"));   // RF-04
+            GroupCallManager groupCalls = new GroupCallManager(); 
             ClientCallbackPrx callback = ClientCallbackPrx.uncheckedCast(
-                    adapter.addWithUUID(new ClientCallbackI(calls,files)));
+                    adapter.addWithUUID(new ClientCallbackI(calls, groupCalls)));
             adapter.activate();
 
             Connection connection = server.ice_getConnection();
@@ -79,7 +83,7 @@ public class ClientMain {
                 }
             });
 
-            new ChatCli(server, callback, communicator,calls).run();
+            new ChatCli(server, callback, communicator,calls, groupCalls).run();
         }
     }
 
@@ -92,12 +96,14 @@ public class ClientMain {
         private final BufferedReader in =
                 new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
         private String nickname;
+        private final GroupCallManager groupCalls;
 
-        ChatCli(ChatServerPrx server, ClientCallbackPrx callback, Communicator communicator, CallManager calls) {
+        ChatCli(ChatServerPrx server, ClientCallbackPrx callback, Communicator communicator, CallManager calls, GroupCallManager groupCalls) {
             this.server = server;
             this.callback = callback;
             this.communicator = communicator;
             this.calls = calls;
+            this.groupCalls = groupCalls;
         }
 
         void run() {
@@ -157,14 +163,23 @@ public class ClientMain {
                     case "/quit" -> {
                         return false;
                     }
+                    //-----------RF-03 (Emmanuel) --------
+                    case "/createRoom" -> createRoom(parts);
+                    case "/rooms" -> printRooms();
+                    case "/join" -> joinRoom(parts);
+                    case "/leave" -> leaveRoom(parts);
+                    case "/mesageRoom" -> sendToRoom(parts); 
                     // ---------- RF-05 (Andrés) ----------
                     case "/call" -> startCall(parts);
                     case "/accept" -> acceptCall();
                     case "/reject" -> rejectCall();
                     case "/hangup" -> hangup();
                     case "/mute" -> toggleMute();
-                    // ---------- RF-04 (Andrés) ----------
-                    case "/sendfile" -> sendFile(parts);
+                    //-------RF-06 (Emmanuel) -----
+                    case "/joinCall" -> joinGroupCall(parts);
+                    case "/leaveCall" -> leaveGroupCall();
+                    case "/participants" -> listParticipants(parts);
+                    case "/muteCall" -> toggleMuteCall();
                     default -> System.out.println("[CLIENT] Comando desconocido. /help para ver comandos.");
                 }
             }
@@ -361,6 +376,140 @@ public class ClientMain {
                 // el servidor ya limpia la sesión al cerrarse la conexión
             }
             nickname = null;
+        }
+
+        // ---------- RF-03 (Emmanuel) ----------
+
+        private void createRoom(String[] parts) {
+            if (parts.length < 2 || parts[1].isBlank()) {
+                System.out.println("[CLIENT] Uso: /createRoom <sala>");
+                return;
+            }
+            try {
+                server.createRoom(nickname, parts[1]);
+                System.out.println("[CLIENT] Sala '" + parts[1] + "' creada.");
+            } catch (NotLoggedIn | RoomAlreadyExists e) {
+                System.out.println("[CLIENT] " + e.reason);
+            }
+        }
+
+        private void printRooms() {
+            System.out.println("[CLIENT] Salas: " + String.join(", ", server.listRooms()));
+        }
+
+        private void joinRoom(String[] parts) {
+            if (parts.length < 2 || parts[1].isBlank()) {
+                System.out.println("[CLIENT] Uso: /join <sala>");
+                return;
+            }
+            try {
+                server.joinRoom(nickname, parts[1]);
+                System.out.println("[CLIENT] Te uniste a '" + parts[1] + "'.");
+            } catch (NotLoggedIn | RoomNotFound e) {
+                System.out.println("[CLIENT] " + e.reason);
+            }
+        }
+
+        private void leaveRoom(String[] parts) {
+            if (parts.length < 2 || parts[1].isBlank()) {
+                System.out.println("[CLIENT] Uso: /leave <sala>");
+                return;
+            }
+            try {
+                server.leaveRoom(nickname, parts[1]);
+                System.out.println("[CLIENT] Saliste de '" + parts[1] + "'.");
+            } catch (NotLoggedIn | RoomNotFound | NotRoomMember e) {
+                System.out.println("[CLIENT] " + e.reason);
+            }
+        }
+
+        // Sin confirmación local: el eco llega por ClientCallbackI.onRoomMessage,
+        // igual que a cualquier otro miembro de la sala.
+        private void sendToRoom(String[] parts) {
+            if (parts.length < 3 || parts[2].isBlank()) {
+                System.out.println("[CLIENT] Uso: /room <sala> <texto>");
+                return;
+            }
+            try {
+                server.sendToRoom(nickname, parts[1], parts[2]);
+            } catch (NotLoggedIn | RoomNotFound | NotRoomMember e) {
+                System.out.println("[CLIENT] " + e.reason);
+            }
+        }
+
+        // ================== RF-06 (Emmanuel): llamadas grupales ==================
+
+        private void joinGroupCall(String[] parts) {
+            if (parts.length < 2 || parts[1].isBlank()) {
+                System.out.println("[LLAMADA GRUPAL] Uso: /joinCall <sala>");
+                return;
+            }
+            String room = parts[1];
+            if (groupCalls.isInCall()) {
+                System.out.println("[LLAMADA GRUPAL] Ya estás en la llamada de '" + groupCalls.currentRoom()
+                        + "'. Usa /leaveCall primero.");
+                return;
+            }
+            try {
+                VoiceEndpoint me = groupCalls.prepareLocalEndpoint();     // abre el socket ANTES de avisar
+                VoiceEndpoint relay = server.joinGroupCall(nickname, room, me);
+                groupCalls.joined(room, relay);
+            } catch (NotLoggedIn | RoomNotFound | NotRoomMember e) {
+                System.out.println("[LLAMADA GRUPAL] " + e.reason);
+                groupCalls.left();                                        // cierra el socket que abrimos
+            } catch (SocketException e) {
+                System.out.println("[LLAMADA GRUPAL] No se pudo abrir el puerto UDP: " + e.getMessage());
+            } catch (com.zeroc.Ice.UnknownException e) {
+                System.out.println("[LLAMADA GRUPAL] El servidor no pudo procesar la unión a la llamada.");
+                groupCalls.left();
+            }
+        }
+
+        private void leaveGroupCall() {
+            String room = groupCalls.currentRoom();
+            if (room == null) {
+                System.out.println("[LLAMADA GRUPAL] No estás en ninguna llamada grupal.");
+                return;
+            }
+            try {
+                server.leaveGroupCall(nickname, room);
+            } catch (NotLoggedIn | RoomNotFound e) {
+                // ya no existe en el server: igual limpiamos localmente
+            } catch (com.zeroc.Ice.LocalException e) {
+                System.out.println("[LLAMADA GRUPAL] El servidor no pudo procesar la salida.");
+            } finally {
+                groupCalls.left();                                        // para audio y cierra socket
+                System.out.println("[LLAMADA GRUPAL] Saliste de la llamada de '" + room + "'.");
+            }
+        }
+
+        private void listParticipants(String[] parts) {
+            if (parts.length < 2 || parts[1].isBlank()) {
+                System.out.println("[LLAMADA GRUPAL] Uso: /participants <sala>");
+                return;
+            }
+            try {
+                Participant[] ps = server.listParticipants(parts[1]);
+                if (ps.length == 0) {
+                    System.out.println("[LLAMADA GRUPAL] Nadie está en la llamada de '" + parts[1] + "'.");
+                    return;
+                }
+                StringBuilder sb = new StringBuilder();
+                for (Participant p : ps) sb.append(p.nickname).append(", ");
+                sb.setLength(sb.length() - 2);
+                System.out.println("[LLAMADA GRUPAL] En '" + parts[1] + "': " + sb);
+            } catch (RoomNotFound e) {
+                System.out.println("[LLAMADA GRUPAL] " + e.reason);
+            }
+        }
+
+        private void toggleMuteCall() {
+            if (!groupCalls.isInCall()) {
+                System.out.println("[LLAMADA GRUPAL] No estás en ninguna llamada grupal.");
+                return;
+            }
+            boolean muted = groupCalls.toggleMute();
+            System.out.println(muted ? "[LLAMADA GRUPAL] Micrófono silenciado." : "[LLAMADA GRUPAL] Micrófono activo.");
         }
     }
 }
