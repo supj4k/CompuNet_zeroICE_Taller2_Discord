@@ -144,15 +144,19 @@ module ChatApp {
          //de no ser estas pude modificar esta parte del contrato, se deja comentada la version relay
          // RF-06: llamada grupal (versión MESH)
          // Devuelve los participantes actuales para que el cliente les mande audio a cada uno
-         ParticipantSeq joinGroupCall(string nickname, string room, VoiceEndpoint myEndpoint)
-             throws NotLoggedIn, RoomNotFound, NotRoomMember;
+         //ParticipantSeq joinGroupCall(string nickname, string room, VoiceEndpoint myEndpoint)
+         //    throws NotLoggedIn, RoomNotFound, NotRoomMember;
          void leaveGroupCall(string nickname, string room)
-             throws NotLoggedIn, RoomNotFound;
+            throws NotLoggedIn, RoomNotFound;
 
-         // RF-06 versión RELAY
-         // Devuelve el endpoint UDP del server; el cliente le manda todo el audio a el
-         //VoiceEndpoint joinGroupCall(string nickname, string room, VoiceEndpoint myEndpoint)
-                 //throws NotLoggedIn, RoomNotFound, NotRoomMember;
+         // RF-06 versión RELAY (elegida)
+         // Devuelve el endpoint UDP del server; el cliente le manda todo el audio a él
+         VoiceEndpoint joinGroupCall(string nickname, string room, VoiceEndpoint myEndpoint)
+            throws NotLoggedIn, RoomNotFound, NotRoomMember;
+
+         // Foto instantánea de quién está en la llamada ahora mismo (bajo demanda, no polling)
+         idempotent ParticipantSeq listParticipants(string room)
+            throws RoomNotFound;
         };
 
 

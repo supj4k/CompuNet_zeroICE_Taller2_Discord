@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
+
 /**
  * Objeto que el servidor invoca de vuelta. Corre en los hilos de Ice, no en el hilo
  * que lee el teclado, así que los mensajes llegan aunque el usuario esté escribiendo.
@@ -20,9 +21,11 @@ public class ClientCallbackI implements ClientCallback {
     private final CallManager callManager; // se crea esta variable para llamar toda lo logica de llamadas
     private static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
+    private final GroupCallManager groupCallManager; 
 
-    public ClientCallbackI(CallManager callManager) {
+    public ClientCallbackI(CallManager callManager, GroupCallManager groupCallManager) {
         this.callManager = callManager;
+        this.groupCallManager = groupCallManager;
     }
 
     static String time(long epochMillis) {
@@ -82,11 +85,11 @@ public class ClientCallbackI implements ClientCallback {
     // ---------- RF-06 (Emmanuel) ----------
     @Override
     public void onParticipantJoined(String room, Participant p, Current current) {
-        // TODO RF-06
+        groupCallManager.onParticipantJoined(room, p);
     }
 
     @Override
     public void onParticipantLeft(String room, String nickname, Current current) {
-        // TODO RF-06
+        groupCallManager.onParticipantLeft(room, nickname);
     }
 }

@@ -1,6 +1,7 @@
 package chat.server;
 
 import ChatApp.*;
+
 import com.zeroc.Ice.Current;
 
 public class ChatServerI implements ChatServer {
@@ -13,6 +14,7 @@ public class ChatServerI implements ChatServer {
     final CallService callService = new CallService(sessions);
 
     final RoomRegister roomRegister = new RoomRegister(sessions);
+    final GroupCallRegistry groupCallRegistry = new GroupCallRegistry(sessions);
 
     private static final int MAX_NICK_LENGTH = 20;
 
@@ -175,15 +177,35 @@ public class ChatServerI implements ChatServer {
     }
 
     // ---------- RF-06 (Emmanuel) ----------
-    @Override
-    public Participant[] joinGroupCall(String nickname, String room, VoiceEndpoint myEndpoint, Current current)
+        @Override
+    public VoiceEndpoint joinGroupCall(String nickname, String room, VoiceEndpoint myEndpoint, Current current)
             throws NotLoggedIn, RoomNotFound, NotRoomMember {
-        throw new UnsupportedOperationException("TODO RF-06");
+        sessions.require(nickname, current);
+        String check = roomRegister.checkStatus(room, nickname);
+        if (check.equals("No existe")) {
+            throw new RoomNotFound("La sala '" + room + "' no existe", room);
+        } else if (check.equals("No pertenece")) {
+            throw new NotRoomMember(nickname + " no pertenece a la sala '" + room + "'", room);
+        }
+        return groupCallRegistry.joinCall(room, nickname, myEndpoint, current);
+    }
+
+    @Override
+    public Participant[] listParticipants(String room, Current current)
+            throws RoomNotFound {
+        if (roomRegister.members(room) == null) {
+            throw new RoomNotFound("La sala '" + room + "' no existe", room);
+        }
+        return groupCallRegistry.participants(room);
     }
 
     @Override
     public void leaveGroupCall(String nickname, String room, Current current)
             throws NotLoggedIn, RoomNotFound {
-        throw new UnsupportedOperationException("TODO RF-06");
+        sessions.require(nickname, current);
+        if (roomRegister.members(room) == null) {
+            throw new RoomNotFound("La sala '" + room + "' no existe", room);
+        }
+        groupCallRegistry.leaveCall(room, nickname);
     }
 }
