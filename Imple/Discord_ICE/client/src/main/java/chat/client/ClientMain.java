@@ -65,10 +65,11 @@ public class ClientMain {
             // el servidor guarda el proxy durante login.
             ObjectAdapter adapter = communicator.createObjectAdapter("");
             CallManager calls = new CallManager(); //se crea esta nueva variable local para crear bien el constructor
-            //de clientCallBack correctamente
-            GroupCallManager groupCalls = new GroupCallManager(); 
+//de clientCallBack correctamente
+            FileAssembler files = new FileAssembler(java.nio.file.Path.of("received"));   // RF-04
+            GroupCallManager groupCalls = new GroupCallManager();
             ClientCallbackPrx callback = ClientCallbackPrx.uncheckedCast(
-                    adapter.addWithUUID(new ClientCallbackI(calls, groupCalls)));
+                    adapter.addWithUUID(new ClientCallbackI(calls, files, groupCalls)));
             adapter.activate();
 
             Connection connection = server.ice_getConnection();
@@ -180,6 +181,7 @@ public class ClientMain {
                     case "/leaveCall" -> leaveGroupCall();
                     case "/participants" -> listParticipants(parts);
                     case "/muteCall" -> toggleMuteCall();
+                    case "/sendfile" -> sendFile(parts);
                     default -> System.out.println("[CLIENT] Comando desconocido. /help para ver comandos.");
                 }
             }

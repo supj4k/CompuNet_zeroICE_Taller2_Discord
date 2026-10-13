@@ -12,7 +12,7 @@ public class ChatServerI implements ChatServer {
 
     // RF-05 (Andrés): señalización de llamadas 1 a 1
     final CallService callService = new CallService(sessions);
-
+    final FileService fileService = new FileService(sessions);
     final RoomRegister roomRegister = new RoomRegister(sessions);
     final GroupCallRegistry groupCallRegistry = new GroupCallRegistry(sessions);
 
