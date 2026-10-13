@@ -654,3 +654,12 @@ sequenceDiagram
 Lo importante de este diagrama es que A nunca conoce la dirección de B: A solo habla con el servidor, y el servidor le llega a B por la conexión que B abrió al hacer login. Las llamadas al callback son **asíncronas** (`...Async`) para que el servidor no se quede bloqueado esperando a un cliente lento, y si un cliente ya no responde, el servidor lo detecta, lo saca del registro y le avisa a los demás.
 
 En resumen, el ciclo de vida del callback en el cliente es: **crear el Communicator → crear un adapter sin endpoints → registrar el servant `ClientCallbackI` → activar el adapter → asociarlo a la conexión con el servidor → entregar el proxy en el `login` → recibir callbacks durante la sesión → destruir todo al salir**. El cliente llega al servidor con un **proxy directo**, un **proxy indirecto** daría transparencia de ubicación usando un Locator, y el servidor le llega al cliente con un **proxy fijo** amarrado a la conexión bidireccional, lo que permite los callbacks sin abrir puertos en el cliente y aunque esté detrás de un NAT o firewall.
+
+
+
+
+##Bitacora de IA 
+
+el modelo o el agente de IA que utilizamos fue Claude Pro y ChatGTP con el modelo Opus/sonnet esfuerzo alto; antes que nada se le envio el pdf del enunciado del taller, para que entendiera el objectivo del proyecto como tal, ademas, pues me base en el para hacer la estructura de los subproyectos, cliente, server y common (ICE), ya que es algo que no habia hecho, le pedi ayuda en lo de grawdle, pues para saber si estaban bien sus respuestas leimos el enunciado para ver si cumplia con los requisitos de la rubrica; se hizo un esqueleto para que todos podamos avanzar en conjunto sin conflictos ademas de una ayuda para el contrato de ICE, despues se hizo los RF'S cada uno en plena colaboracion siguiendo los parametros del enunciado
+
+el uso de IA en mi proyecto fue muy colaborativo, fue de trabajar a la par, y muestra de eso fue como se hizo las respuestas del cuestionario.
