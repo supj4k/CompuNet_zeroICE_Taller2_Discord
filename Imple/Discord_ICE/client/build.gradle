@@ -24,3 +24,22 @@ tasks.register('runClient', JavaExec) {
     def port = project.findProperty('port') ?: '10000'
     args '--Ice.Config=config.client', "--ChatServer.Proxy=ChatServer:tcp -h ${host} -p ${port}"
 }
+// ./gradlew runAudioTest -PaudioArgs="127.0.0.1 5000 5000"
+tasks.register('runAudioTest', JavaExec) {
+    group = 'chat'
+    description = 'Prueba aislada de audio UDP (RF-05)'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'chat.client.audio.AudioTest'
+    standardInput = System.in
+    args((project.findProperty('audioArgs') ?: '127.0.0.1 5000 5000').split(' '))
+}
+
+// ./gradlew runFileTest -Pfile="C:\ruta\a\foto.png"
+tasks.register('runFileTest', JavaExec) {
+    group = 'chat'
+    description = 'Prueba aislada de chunking de archivos (RF-04)'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'chat.client.files.FileTest'
+    workingDir = projectDir
+    args(project.findProperty('file') ?: '')
+}
