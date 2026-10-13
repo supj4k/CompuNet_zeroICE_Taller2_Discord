@@ -23,10 +23,11 @@ public class ClientCallbackI implements ClientCallback {
     private final FileAssembler files;
     private static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
-    private final GroupCallManager groupCallManager; 
+    private final GroupCallManager groupCallManager;
 
-    public ClientCallbackI(CallManager callManager, GroupCallManager groupCallManager) {
+    public ClientCallbackI(CallManager callManager, FileAssembler files, GroupCallManager groupCallManager) {
         this.callManager = callManager;
+        this.files = files;
         this.groupCallManager = groupCallManager;
     }
 

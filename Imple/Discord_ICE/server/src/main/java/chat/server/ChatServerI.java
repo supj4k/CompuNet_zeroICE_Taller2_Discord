@@ -12,8 +12,8 @@ public class ChatServerI implements ChatServer {
 
     // RF-05 (Andrés): señalización de llamadas 1 a 1
     final CallService callService = new CallService(sessions);
-
-    final RoomRegister roomRegister = new RoomRegister(sessions);
+    final RoomRegister roomRegister = new RoomRegister(sessions);                 // primero las salas
+    final FileService fileService = new FileService(sessions, roomRegister);      // después archivos
     final GroupCallRegistry groupCallRegistry = new GroupCallRegistry(sessions);
 
     private static final int MAX_NICK_LENGTH = 20;
@@ -148,7 +148,7 @@ public class ChatServerI implements ChatServer {
     @Override
     public void sendFileChunkToRoom(String nickname, String room, FileChunk chunk, Current current)
             throws NotLoggedIn, RoomNotFound, NotRoomMember {
-        throw new UnsupportedOperationException("TODO RF-04");
+        fileService.sendToRoom(nickname, room, chunk, current);
     }
 
     // ---------- RF-05 (Andrés) ----------
