@@ -1,107 +1,331 @@
-# :wave: The Basics of GitHub 
+# Chat Multimedia Distribuido con ZeroC Ice y Voz UDP
 
-## 🤓 Course overview and learning outcomes 
+Sistema de chat multiusuario por consola, tipo Discord, construido como proyecto Gradle multimódulo con el middleware **ZeroC Ice 3.7** (RPC sobre TCP) para sesión, mensajes, salas, archivos y señalización de llamadas, y **UDP directo** para la voz. Computación en Internet I — Universidad Icesi.
 
-The goal of this course is to give you a brief introduction to GitHub. We’ll also provide you with materials for further learning and a few ideas to get you started on our platform. 🚀
+**Integrantes**
 
-## :octocat: Git and GitHub
+| Integrante | Código | Requerimientos |
+|---|---|---|
+| Juan Diego Domínguez | A00411836 | RF-01 Sesión y presencia · RF-02 Mensajes privados |
+| Emmanuel Muñoz | A00410447 | RF-03 Salas · RF-06 Llamada grupal |
+| Andrés Felipe García | A00410510 | RF-04 Archivos · RF-05 Llamada 1 a 1 |
 
-Git is a **distributed Version Control System (VCS)**, which means it is a useful tool for easily tracking changes to your code, collaborating, and sharing. With Git you can track the changes you make to your project so you always have a record of what you’ve worked on and can easily revert back to an older version if need be. It also makes working with others easier—groups of people can work together on the same project and merge their changes into one final source!
+## Tabla de contenido
 
-GitHub is a way to use the same power of Git all online with an easy-to-use interface. It’s used across the software world and beyond to collaborate and maintain the history of projects.
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Requisitos](#requisitos)
+- [Compilar](#compilar)
+- [Ejecutar](#ejecutar)
+- [Arquitectura](#arquitectura)
+- [Manual de usuario](#manual-de-usuario)
+- [Herramientas de prueba](#herramientas-de-prueba)
+- [Problemas comunes](#problemas-comunes)
+- [Documentación adicional](#documentación-adicional)
 
-GitHub is home to some of the most advanced technologies in the world. Whether you're visualizing data or building a new game, there's a whole community and set of tools on GitHub that can get you to the next step. This course starts with the basics of GitHub, but we'll dig into the rest later.
+## Estructura del proyecto
 
-## :octocat: Understanding the GitHub flow 
+El proyecto Gradle está en `Imple/Discord_ICE`:
 
-The GitHub flow is a lightweight workflow that allows you to experiment and collaborate on your projects easily, without the risk of losing your previous work.
+```text
+Imple/Discord_ICE
+├── common/   contrato Slice (src/main/slice/Chat.ice); de aquí slice2java genera el código Java compartido
+├── server/   servidor Ice (puerto 10000) + config.server
+│   └── chat/server
+│       ├── ServerMain          arranca el Communicator y el ObjectAdapter
+│       ├── ChatServerI         servant: implementa la interfaz ChatServer y delega en los servicios
+│       ├── SessionRegistry     RF-01: sesiones, callbacks, presencia y detección de caídas
+│       ├── RoomRegister        RF-03: salas y miembros
+│       ├── FileService         RF-04: reenvío de chunks a un usuario o a una sala
+│       ├── CallService         RF-05: señalización de llamadas 1 a 1
+│       └── GroupCallRegistry   RF-06: llamadas grupales y relay UDP por sala
+└── client/   cliente de consola + config.client
+    └── chat/client
+        ├── ClientMain          CLI (hilo de teclado) y conexión con el server
+        ├── ClientCallbackI     objeto que el server invoca de vuelta (callbacks)
+        ├── CallManager         RF-05: estado de la llamada 1 a 1 y audio
+        ├── GroupCallManager    RF-06: estado de la llamada grupal y audio hacia el relay
+        ├── audio/              AudioSender (micrófono → UDP), AudioReceiver (UDP → parlante)
+        └── files/              FileChunker (parte en chunks), FileAssembler (rearma)
+```
 
-### Repositories
+## Requisitos
 
-A repository is where your project work happens--think of it as your project folder. It contains all of your project’s files and revision history.  You can work within a repository alone or invite others to collaborate with you on those files.
+- **JDK 17** o superior.
+- **ZeroC Ice 3.7.11**: el compilador `slice2java` tiene que estar en el PATH. Para verificarlo: `slice2java --version`.
+- No hace falta instalar Gradle: se usa el wrapper (`gradlew`, Gradle 8.14).
+- Para las llamadas: micrófono y parlantes/audífonos.
 
-### Cloning 
+> El código generado por Slice no se sube al repositorio; se regenera en cada build. Por eso Ice debe estar instalado en cada máquina que compile el proyecto.
 
-When a repository is created with GitHub, it’s stored remotely in the ☁️. You can clone a repository to create a local copy on your computer and then use Git to sync the two. This makes it easier to fix issues, add or remove files, and push larger commits. You can also use the editing tool of your choice as opposed to the GitHub UI. Cloning a repository also pulls down all the repository data that GitHub has at that point in time, including all versions of every file and folder for the project! This can be helpful if you experiment with your project and then realize you liked a previous version more. 
-To learn more about cloning, read ["Cloning a Repository"](https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository). 
+## Compilar
 
-### Committing and pushing
-**Committing** and **pushing** are how you can add the changes you made on your local machine to the remote repository in GitHub. That way your instructor and/or teammates can see your latest work when you’re ready to share it. You can make a commit when you have made changes to your project that you want to “checkpoint.” You can also add a helpful **commit message** to remind yourself or your teammates what work you did (e.g. “Added a README with information about our project”).
+Desde la carpeta del proyecto Gradle:
 
-Once you have a commit or multiple commits that you’re ready to add to your repository, you can use the push command to add those changes to your remote repository. Committing and pushing may feel new at first, but we promise you’ll get used to it 🙂
+```powershell
+cd Imple/Discord_ICE
+.\gradlew clean build
+```
 
-## 💻 GitHub terms to know 
+Debe terminar en `BUILD SUCCESSFUL`. El build ejecuta `compileSlice` (genera el Java a partir de `Chat.ice`), compila los tres módulos y corre las pruebas JUnit del server.
 
-### Repositories 
-We mentioned repositories already, they are where your project work happens, but let’s talk a bit more about the details of them! As you work more on GitHub you will have many repositories which may feel confusing at first. Fortunately, your ["GitHub dashboard"](https://docs.github.com/en/github/setting-up-and-managing-your-github-user-account/about-your-personal-dashboard) helps to easily navigate to your repositories and see useful information about them. Make sure you’re logged in to see it!
+> En Windows se usa `.\gradlew`; en Linux/Mac, `./gradlew`.
 
-Repositories also contain **README**s. You can add a README file to your repository to tell other people why your project is useful, what they can do with your project, and how they can use it. We are using this README to communicate how to learn Git and GitHub with you. 😄 
-To learn more about repositories read ["Creating, Cloning, and Archiving Repositories](https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/about-repositories) and ["About README's"](https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/about-readmes). 
+## Ejecutar
 
-### Branches
-You can use branches on GitHub to isolate work that you do not want merged into your final project just yet. Branches allow you to develop features, fix bugs, or safely experiment with new ideas in a contained area of your repository. Typically, you might create a new branch from the default branch of your repository—main. This makes a new working copy of your repository for you to experiment with. Once your new changes have been reviewed by a teammate, or you are satisfied with them, you can merge your changes into the default branch of your repository.
-To learn more about branching, read ["About Branches"](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/about-branches).
+Se abre una terminal por proceso, siempre ubicados en `Imple/Discord_ICE`.
 
-### Forks
-A fork is another way to copy a repository, but is usually used when you want to contribute to someone else’s project. Forking a repository allows you to freely experiment with changes without affecting the original project and is very popular when contributing to open source software projects!
-To learn more about forking, read ["Fork a repo"](https://docs.github.com/en/github/getting-started-with-github/fork-a-repo)
+**1. Servidor** (un solo PC):
 
-### Pull requests
-When working with branches, you can use a pull request to tell others about the changes you want to make and ask for their feedback. Once a pull request is opened, you can discuss and review the potential changes with collaborators and add more changes if need be. You can add specific people as reviewers of your pull request which shows you want their feedback on your changes! Once a pull request is ready-to-go, it can be merged into your main branch.
-To learn more about pull requests, read ["About Pull Requests"](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests). 
+```powershell
+.\gradlew :server:runServer
+```
 
+Lee `server/config.server`: escucha en `tcp -p 10000` en todas las interfaces y usa un ThreadPool de 4 a 16 hilos.
 
-### Issues
-Issues are a way to track enhancements, tasks, or bugs for your work on GitHub. Issues are a great way to keep track of all the tasks you want to work on for your project and let others know what you plan to work on. You can also use issues to tell a favorite open source project about a bug you found or a feature you think would be great to add!
+**2. Clientes** (uno por usuario, en el mismo PC o en otros):
 
-For larger projects, you can keep track of many issues on a project board. GitHub Projects help you organize and prioritize your work and you can read more about them [in this "About Project boards document](https://docs.github.com/en/github/managing-your-work-on-github/about-project-boards). You likely won’t need a project board for your assignments, but once you move on to even bigger projects, they’re a great way to organize your team’s work!
-You can also link together pull requests and issues to show that a fix is in progress and to automatically close the issue when someone merges the pull request.
-To learn more about issues and linking them to your pull requests, read ["About Issues"](https://docs.github.com/en/github/managing-your-work-on-github/about-issues). 
+```powershell
+.\gradlew :client:runClient -Pserver=<IP del servidor>
+```
 
-### Your user profile
+| Parámetro | Para qué | Por defecto |
+|---|---|---|
+| `-Pserver=<ip>` | IP del PC donde corre el server | `localhost` |
+| `-Pport=<puerto>` | Puerto del server | `10000` |
 
-Your profile page tells people the story of your work through the repositories you're interested in, the contributions you've made, and the conversations you've had. You can also give the world a unique view into who you are with your profile README. You can use your profile to let future employers know all about you! 
-To learn more about your user profile and adding and updating your profile README, read ["Managing Your Profile README"](https://docs.github.com/en/github/setting-up-and-managing-your-github-profile/managing-your-profile-readme). 
+### Varios PCs en la misma red
 
-### Using markdown on GitHub 
+La **única IP que se escribe a mano es la del servidor**. Las IPs para el audio no se configuran: el server toma la IP real de cada cliente de su conexión TCP y se la pasa a los demás.
 
-You might have noticed already, but you can add some fun styling to your issues, pull requests, and files. ["Markdown"](https://guides.github.com/features/mastering-markdown/) is an easy way to style your issues, pull requests, and files with some simple syntax. This can be helpful to organize your information and make it easier for others to read. You can also drop in gifs and images to help convey your point!
-To learn more about using GitHub’s flavor of markdown, read ["Basic Writing and Formatting Syntax"](https://docs.github.com/en/github/writing-on-github/basic-writing-and-formatting-syntax). 
+1. En el PC servidor, ver la IP con `ipconfig` (por ejemplo `192.168.1.16`).
+2. Probar desde los otros PCs que se vean: `ping 192.168.1.16`.
+3. Levantar el server en ese PC y todos los clientes con `-Pserver=192.168.1.16`.
 
-### Engaging with the GitHub community
+> **Importante:** el cliente que corre en el mismo PC del servidor también debe usar `-Pserver=192.168.1.16` y **no** `localhost`. Si entra por `localhost`, el server ve su IP como `127.0.0.1`, se la pasa a los demás y el audio nunca les llega.
 
-The GitHub community is vast. There are many types of people who use GitHub in their day to day—students like you, professional developers, hobbyists working on open source projects, and explorers who are just jumping into the world of software development on their own. There are many ways you can interact with the larger GitHub community, but here are three places where you can start. 
+**Firewall (Windows):** marcar la red como **privada**, dejar el firewall activado y, cuando Windows pregunte, **permitir Java**. Se necesita que entre TCP 10000 en el PC servidor y UDP en los clientes (y en el servidor para la llamada grupal). Los puertos UDP los asigna el sistema operativo en cada llamada.
 
-#### Starring repositories 
+## Arquitectura
 
-If you find a repository interesting or you want to keep track of it, star it! When you star a repository it’s also used as a signal to surface better recommendations on github.com/explore. If you’d like to get back to your starred repositories you can do so via your user profile. 
-To learn  more about starring repositories, read ["Saving Repositories with Stars"](https://docs.github.com/en/github/getting-started-with-github/saving-repositories-with-stars). 
+El sistema separa dos tipos de tráfico:
 
-#### Following users 
+| Canal | Protocolo | Qué viaja | Por qué |
+|---|---|---|---|
+| **Ice** | TCP, puerto 10000 | login, presencia, mensajes privados y de sala, chunks de archivos, señalización de llamadas (llamar, aceptar, rechazar, colgar, unirse) | necesita entrega confiable y en orden |
+| **Voz** | UDP | audio PCM 16 kHz, 16 bits, mono, en paquetes de 20 ms (640 bytes, 50 por segundo) | en voz es mejor perder un paquete que esperar a que se reenvíe tarde |
 
-You can follow people on GitHub to receive notifications about their activity and discover projects in their communities. When you follow a user, their public GitHub activity will show up on your dashboard so you can see all the cool things they are working on. 
-To learn more about following users, read ["Following People"](https://docs.github.com/en/github/getting-started-with-github/following-people).
+### Diagrama general
 
-#### Browsing GitHub Explore 
+```mermaid
+flowchart TB
+    S["<b>Servidor</b> · ServerMain · TCP 10000<br/>ChatServerI (servant)<br/>SessionRegistry · RoomRegister · FileService<br/>CallService · GroupCallRegistry"]
+    R(["Relay UDP de la sala<br/>(dentro del servidor, RF-06)"])
+    A["<b>Cliente A</b><br/>ChatCli · ClientCallbackI<br/>CallManager · GroupCallManager<br/>FileChunker · FileAssembler"]
+    B["<b>Cliente B</b><br/>ChatCli · ClientCallbackI<br/>CallManager · GroupCallManager<br/>FileChunker · FileAssembler"]
 
-GitHub Explore is a great place to do just that … explore :smile: You can find new projects, events, and developers to interact with.
+    A <==>|"Ice/TCP 10000<br/>peticiones + callbacks"| S
+    B <==>|"Ice/TCP 10000<br/>peticiones + callbacks"| S
+    S --- R
+    A <-.->|"UDP voz 1 a 1, directo"| B
+    A -.->|"UDP voz grupal"| R
+    R -.->|"UDP reenviado"| B
+```
 
-You can check out the GitHub Explore website [at github.com/explore](https://github.com/explore). The more you interact with GitHub the more tailored your Explore view will be. 
+Líneas gruesas = Ice sobre TCP (peticiones del cliente y callbacks del servidor por la misma conexión). Líneas punteadas = voz sobre UDP: en la llamada 1 a 1 el audio va directo entre clientes; en la grupal pasa por el relay que el servidor abre por sala.
 
-## 📝 Optional next steps 
+### Flujo de Ice: callbacks bidireccionales
 
-* Open a pull request and let your teacher know that you’ve finished this course.  
-* Create a new markdown file in this repository. Let them know what you learned and what you are still confused about! Experiment with different styles!
-* Create your profile README. Let the world know a little bit more about you! What are you interested in learning? What are you working on? What's your favorite hobby? Learn more about creating your profile README in the document, ["Managing Your Profile README"](https://docs.github.com/en/github/setting-up-and-managing-your-github-profile/managing-your-profile-readme).
-* Go to your user dashboard and create a new repository. Experiment with the features within that repository to familiarize yourself with them. 
-* [Let us know what you liked or didn’t like about the content of this course](https://support.github.com/contact/education). What would you like to see more of? What would be interesting or helpful to your learning journey? 
+Cada cliente abre **una sola conexión TCP** al servidor y la usa en los dos sentidos:
 
-## 📚  Resources 
-* [A short video explaining what GitHub is](https://www.youtube.com/watch?v=w3jLJU7DT5E&feature=youtu.be) 
-* [Git and GitHub learning resources](https://docs.github.com/en/github/getting-started-with-github/git-and-github-learning-resources) 
-* [Understanding the GitHub flow](https://guides.github.com/introduction/flow/)
-* [How to use GitHub branches](https://www.youtube.com/watch?v=H5GJfcp3p4Q&feature=youtu.be)
-* [Interactive Git training materials](https://githubtraining.github.io/training-manual/#/01_getting_ready_for_class)
-* [GitHub's Learning Lab](https://lab.github.com/)
-* [Education community forum](https://education.github.community/)
-* [GitHub community forum](https://github.community/)
+- **Cliente → Servidor:** el cliente llama operaciones de `ChatServer` (`login`, `sendPrivate`, `sendToRoom`, `sendFileChunkToUser`, `startCall`, `joinGroupCall`...).
+- **Servidor → Cliente:** en el `login` el cliente le pasa al server el proxy de su `ClientCallback`. El cliente crea su adaptador **sin endpoints** (`createObjectAdapter("")`) y lo amarra a la conexión (`connection.setAdapter(adapter)`), así el server le habla por esa misma conexión (`onUserJoined`, `onPrivateMessage`, `onRoomMessage`, `onFileChunk`, `onIncomingCall`...). El cliente no abre puertos, lo que evita problemas con NAT y firewall.
+
+El server invoca los callbacks de forma **asíncrona** (`...Async`) para que un cliente lento no bloquee a los demás. Con **ACM** el cliente manda heartbeats cada 10 s y el server cierra las conexiones que pasan 30 s sin actividad; cuando una conexión se cierra, se limpia la sesión, se avisa a los demás y se terminan las llamadas en curso de ese usuario.
+
+### Flujo de archivos (RF-04)
+
+Los archivos viajan por Ice partidos en bloques de **64 KB** (`FileChunk` con `transferId`, nombre, tamaño total, índice, total de chunks y `data` como `sequence<byte>`), muy por debajo del límite por defecto de Ice (`Ice.MessageSizeMax` = 1 MB). El servidor solo hace de cartero: no arma ni guarda archivos.
+
+```mermaid
+sequenceDiagram
+    participant A as Cliente A<br/>(FileChunker)
+    participant S as Servidor<br/>(FileService)
+    participant B as Cliente B<br/>(FileAssembler)
+
+    Note over A: /sendfile B foto.png
+    loop por cada chunk de 64 KB (i = 0 .. n-1)
+        A->>S: sendFileChunkToUser("A", "B", chunk i)
+        S->>S: valida sesión y destino
+        S-)B: onFileChunk("A", "", chunk i)
+        B->>B: escribe en .part en la posición i × 64 KB
+    end
+    B->>B: verifica el tamaño y lo mueve a received/
+```
+
+En una sala (`/sendfileroom`) el cliente llama `sendFileChunkToRoom`; el server valida que la sala exista y que el emisor sea miembro, y reenvía cada chunk a todos los miembros menos al emisor, con el nombre de la sala.
+
+### Flujo de voz 1 a 1 (RF-05)
+
+La señalización va por Ice y el audio va **directo entre los dos clientes** por UDP.
+
+```mermaid
+sequenceDiagram
+    participant A as Cliente A
+    participant S as Servidor<br/>(CallService)
+    participant B as Cliente B
+
+    A->>A: abre DatagramSocket(0)
+    A->>S: startCall("A", "B", {host:"", port})
+    S->>S: rellena host con la IP real de A
+    S-)B: onIncomingCall(callId, "A", endpoint A)
+    S-->>A: callId
+    B->>B: abre DatagramSocket(0)
+    B->>S: acceptCall("B", callId, {host:"", port})
+    S-)A: onCallAccepted(callId, endpoint B)
+    Note over A,B: audio PCM por UDP, 20 ms por paquete
+    A--)B: UDP
+    B--)A: UDP
+    A->>S: hangup("A", callId)
+    S-)B: onCallEnded(callId, "A")
+```
+
+El cliente manda el host vacío y el server lo completa con la IP de la conexión TCP, por eso nadie tiene que escribir IPs para el audio. Si el destino ya está en otra llamada, el server responde `UserBusy`.
+
+### Flujo de voz grupal (RF-06, relay)
+
+En la llamada grupal cada cliente le manda su audio a un **relay UDP** que el servidor abre por sala, y el relay lo reenvía a los demás participantes. Así cada cliente envía un solo flujo, sin importar cuántos haya en la llamada.
+
+```mermaid
+sequenceDiagram
+    participant A as Cliente A
+    participant S as Servidor<br/>(GroupCallRegistry)
+    participant R as Relay UDP<br/>de la sala
+    participant B as Cliente B
+
+    A->>S: joinGroupCall("A", "sala", endpoint A)
+    S-->>A: endpoint del relay
+    B->>S: joinGroupCall("B", "sala", endpoint B)
+    S-)A: onParticipantJoined("sala", B)
+    S-->>B: endpoint del relay
+    A--)R: audio UDP
+    R--)B: reenvía a todos menos al emisor
+    B--)R: audio UDP
+    R--)A: reenvía a todos menos al emisor
+    B->>S: leaveGroupCall("B", "sala")
+    S-)A: onParticipantLeft("sala", "B")
+```
+
+## Manual de usuario
+
+Al iniciar, el cliente pide un **nickname** (no puede estar vacío, tener espacios ni estar en uso). Después se escriben comandos; `/help` los muestra todos.
+
+> Los comandos distinguen mayúsculas: se escriben exactamente como en la tabla (por ejemplo `/createRoom`, no `/createroom`).
+
+### Sesión y mensajes
+
+| Comando | Qué hace |
+|---|---|
+| `/help` | Muestra los comandos |
+| `/users` | Lista los usuarios conectados |
+| `/msg <nick> <texto>` | Mensaje privado a un usuario |
+| `/logout` | Cierra sesión y vuelve a pedir nickname |
+| `/quit` | Cierra sesión y sale del programa |
+
+### Salas
+
+| Comando | Qué hace |
+|---|---|
+| `/createRoom <sala>` | Crea una sala; quien la crea queda adentro |
+| `/rooms` | Lista las salas que existen |
+| `/join <sala>` | Unirse a una sala |
+| `/leave <sala>` | Salir de una sala |
+| `/mesageRoom <sala> <texto>` | Mensaje a todos los miembros de la sala |
+
+### Archivos
+
+| Comando | Qué hace |
+|---|---|
+| `/sendfile <nick> <ruta>` | Envía un archivo a un usuario |
+| `/sendfileroom <sala> <ruta>` | Envía un archivo a todos los miembros de una sala |
+
+La ruta puede ser absoluta o relativa a la carpeta `client`, y puede ir entre comillas si tiene espacios. Los archivos recibidos quedan en `client/received`. Si ya existe uno con el mismo nombre, se guarda como `nombre (1).ext`.
+
+### Llamada 1 a 1
+
+| Comando | Qué hace |
+|---|---|
+| `/call <nick>` | Llama a un usuario |
+| `/accept` | Contesta la llamada entrante |
+| `/reject` | Rechaza la llamada entrante |
+| `/hangup` | Cuelga la llamada (o la cancela si todavía está sonando) |
+| `/mute` | Silencia / activa el micrófono |
+
+### Llamada grupal
+
+| Comando | Qué hace |
+|---|---|
+| `/joinCall <sala>` | Entra a la llamada grupal de una sala (hay que ser miembro) |
+| `/leaveCall` | Sale de la llamada grupal |
+| `/participants <sala>` | Muestra quién está en la llamada de la sala |
+| `/muteCall` | Silencia / activa el micrófono en la llamada grupal |
+
+### Ejemplo de uso
+
+```text
+Nickname: Alice
+[CLIENT] Sesión iniciada como Alice. /help para ver comandos.
+[CLIENT] Conectados: Alice, Bob
+/msg Bob hola Bob
+[19:25:03] (para Bob) hola Bob
+/createRoom proyecto
+[CLIENT] Sala 'proyecto' creada.
+/sendfileroom proyecto "C:\Users\alice\Documents\enunciado.pdf"
+[ARCHIVO] Enviando 'enunciado.pdf' a #proyecto...
+[ARCHIVO] Enviado 'enunciado.pdf' a #proyecto (3 chunks, 31 ms)
+/call Bob
+[LLAMADA] Llamando a Bob...
+[LLAMADA] Bob contestó. /mute para silenciar, /hangup para colgar.
+[AUDIO] Enviando a 192.168.1.14:41777, escuchando en UDP 42221
+/hangup
+[LLAMADA] Colgaste.
+```
+
+### Mensajes que muestra el cliente
+
+| Prefijo | Significado |
+|---|---|
+| `[+] / [-]` | Un usuario se conectó / se desconectó |
+| `(privado)` / `#sala` | Mensaje recibido en privado / en una sala |
+| `[ARCHIVO]` | Envío o recepción de archivos |
+| `[LLAMADA]` / `[LLAMADA GRUPAL]` | Estado de las llamadas |
+| `[AUDIO]` | A qué IP:puerto se manda el audio y en qué puerto UDP se escucha |
+| `[CLIENT]` | Mensajes del cliente y errores controlados (sala que no existe, usuario ocupado, etc.) |
+
+## Herramientas de prueba
+
+Pruebas aisladas que no necesitan el servidor:
+
+```powershell
+# Audio UDP entre dos PCs (correr en los dos al tiempo, cada uno con la IP del otro)
+.\gradlew :client:runAudioTest -PaudioArgs="<ip del otro PC> 5000 5000"
+
+# Partir y rearmar un archivo en desorden, comparando el SHA-256
+.\gradlew :client:runFileTest -Pfile="C:\ruta\a\archivo.pdf"
+```
+
+Pruebas JUnit del servidor (sesión y mensajes privados): `.\gradlew :server:test`.
+
+## Problemas comunes
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| `slice2java not found` al compilar | Ice no está instalado o no está en el PATH | Instalar ZeroC Ice 3.7 y verificar con `slice2java --version` |
+| `[CLIENT] No se pudo conectar (::Ice::ConnectionRefusedException)` | El server no está corriendo, la IP/puerto están mal o el firewall bloquea el 10000 | Verificar el server, la IP con `ping` y el firewall |
+| El chat funciona pero no se escucha el audio | Firewall bloqueando UDP, o algún cliente entró con `localhost` | Red privada + permitir Java; usar siempre la IP LAN del server |
+| Errores en rojo en IntelliJ después de cambiar `Chat.ice` | El código generado quedó viejo | `.\gradlew clean build` y *Reload All Gradle Projects* |
+| Tildes raras en la consola de Windows | Codificación de la consola | Ejecutar `chcp 65001` antes de correr |
+
+## Documentación adicional
+
+- [`docs/PreguntasTeoricas.md`](docs/PreguntasTeoricas.md): informe técnico de funcionamiento con capturas de cada prueba y respuestas a las preguntas teóricas.
+- [`Imple/Discord_ICE/common/src/main/slice/Chat.ice`](Imple/Discord_ICE/common/src/main/slice/Chat.ice): contrato Slice completo (excepciones, estructuras, `ClientCallback` y `ChatServer`).
