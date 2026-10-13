@@ -4,6 +4,8 @@ import ChatApp.FileChunk;
 import ChatApp.NotLoggedIn;
 import ChatApp.UserNotFound;
 import com.zeroc.Ice.Current;
+import ChatApp.NotRoomMember;
+import ChatApp.RoomNotFound;
 
 /**
  * RF-04 (Andrés): transferencia de archivos en el servidor.
@@ -16,9 +18,10 @@ import com.zeroc.Ice.Current;
 public class FileService {
 
     private final SessionRegistry sessions;
-
-    public FileService(SessionRegistry sessions) {
+    private final RoomRegister rooms;
+    public FileService(SessionRegistry sessions, RoomRegister rooms) {
         this.sessions = sessions;
+        this.rooms = rooms;
     }
 
     /** Reenvía un chunk a un usuario (envío privado: room = ""). */
@@ -45,9 +48,34 @@ public class FileService {
         sessions.notify(target, cb -> cb.onFileChunkAsync(from, "", chunk));
     }
 
-    // TODO RF-04 + RF-03: sendToRoom(nickname, room, chunk, current)
-    //  Necesita del RoomManager de Emmanuel:
-    //   1. validar que la sala existe y que el emisor es miembro (RoomNotFound / NotRoomMember)
-    //   2. obtener los miembros de la sala
-    //   3. reenviar el chunk a cada miembro MENOS al emisor, con room = nombre de la sala
+    /** Reenvía un chunk a todos los miembros de la sala menos al que lo manda. */
+    public void sendToRoom(String nickname, String room, FileChunk chunk, Current current)
+            throws NotLoggedIn, RoomNotFound, NotRoomMember {
+        SessionRegistry.Session sender = sessions.require(nickname, current);
+
+        // 1. validar la sala y que el emisor sea miembro (mismo checkStatus que usa sendToRoom de texto)
+        String check = rooms.checkStatus(room, sender.nickname);
+        if (check.equals("No existe")) {
+            throw new RoomNotFound("La sala '" + room + "' no existe", room);
+        }
+        if (check.equals("No pertenece")) {
+            throw new NotRoomMember(sender.nickname + " no pertenece a la sala '" + room + "'", room);
+        }
+
+        // 2. un solo log por archivo, en el primer chunk
+        if (chunk.chunkIndex == 0) {
+            System.out.println("[FILE] " + sender.nickname + " -> #" + room + ": " + chunk.fileName
+                    + " (" + chunk.totalSize + " bytes, " + chunk.totalChunks + " chunks)");
+        }
+
+        // 3. reenviar a cada miembro conectado, menos al emisor, con el nombre de la sala
+        final String from = sender.nickname;
+        for (String member : rooms.members(room)) {
+            if (member.equals(from)) continue;
+            SessionRegistry.Session target = sessions.get(member);
+            if (target != null) {                       // si se desconectó, se salta
+                sessions.notify(target, cb -> cb.onFileChunkAsync(from, room, chunk));
+            }
+        }
+    }
 }

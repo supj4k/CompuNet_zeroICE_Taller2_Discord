@@ -181,7 +181,10 @@ public class ClientMain {
                     case "/leaveCall" -> leaveGroupCall();
                     case "/participants" -> listParticipants(parts);
                     case "/muteCall" -> toggleMuteCall();
+
+                    // ---------- RF-04 (Andrés) ----------
                     case "/sendfile" -> sendFile(parts);
+                    case "/sendfileroom" -> sendFileToRoom(parts);
                     default -> System.out.println("[CLIENT] Comando desconocido. /help para ver comandos.");
                 }
             }
@@ -193,11 +196,22 @@ public class ClientMain {
             System.out.println("  /msg <nick> <texto>  mensaje privado");
             System.out.println("  /logout              cerrar sesión (permite entrar con otro nick)");
             System.out.println("  /quit                cerrar sesión y salir");
+            System.out.println("  --- salas ---");
+            System.out.println("  /createRoom <sala>           crear una sala (quedas adentro)");
+            System.out.println("  /rooms                       listar salas");
+            System.out.println("  /join <sala> | /leave <sala> unirse o salir de una sala");
+            System.out.println("  /mesageRoom <sala> <texto>   mensaje a una sala");
+            System.out.println("  --- llamadas ---");
             System.out.println("  /call <nick>         llamar por voz a un usuario");
             System.out.println("  /accept | /reject    contestar o rechazar una llamada entrante");
             System.out.println("  /hangup              colgar (o cancelar si aún está sonando)");
             System.out.println("  /mute                silenciar / activar el micrófono en llamada");
-            System.out.println("  /sendfile <nick> <ruta>  enviar un archivo a un usuario");
+            System.out.println("  /joinCall <sala> | /leaveCall    entrar o salir de la llamada grupal");
+            System.out.println("  /participants <sala>             quién está en la llamada grupal");
+            System.out.println("  /muteCall                        silenciar en la llamada grupal");
+            System.out.println("  --- archivos ---");
+            System.out.println("  /sendfile <nick> <ruta>      enviar un archivo a un usuario");
+            System.out.println("  /sendfileroom <sala> <ruta>  enviar un archivo a una sala");
         }
 
         private void printUsers() {
@@ -224,36 +238,55 @@ public class ClientMain {
         }
         // ================== RF-04 (Andrés): archivos ==================
 
-        /** /sendfile <nick> <ruta>: parte el archivo y manda los chunks en un hilo aparte. */
+        /** /sendfile <nick> <ruta>: archivo privado a un usuario. */
         private void sendFile(String[] parts) {
             if (parts.length < 3) {
                 System.out.println("[ARCHIVO] Uso: /sendfile <nick> <ruta del archivo>");
                 return;
             }
             String to = parts[1];
-            java.nio.file.Path file = java.nio.file.Path.of(parts[2].trim().replace("\"", ""));
             if (to.equals(nickname)) {
                 System.out.println("[ARCHIVO] No puedes enviarte un archivo a ti mismo.");
                 return;
             }
+            final String me = nickname;   // por si hace /logout mientras se envía
+            uploadFile(parts[2], to, chunk -> server.sendFileChunkToUser(me, to, chunk));
+        }
+
+        /** /sendfileroom <sala> <ruta>: archivo a todos los miembros de una sala. */
+        private void sendFileToRoom(String[] parts) {
+            if (parts.length < 3) {
+                System.out.println("[ARCHIVO] Uso: /sendfileroom <sala> <ruta del archivo>");
+                return;
+            }
+            String room = parts[1];
+            final String me = nickname;
+            uploadFile(parts[2], "#" + room, chunk -> server.sendFileChunkToRoom(me, room, chunk));
+        }
+
+        /**
+         * Parte común: valida el archivo y lo manda por chunks en un hilo aparte.
+         * "send" es lo único que cambia entre privado y sala: a qué método del server va cada chunk.
+         */
+        private void uploadFile(String rawPath, String destino, FileChunker.ChunkSender send) {
+            java.nio.file.Path file = java.nio.file.Path.of(rawPath.trim().replace("\"", ""));
             if (!java.nio.file.Files.isRegularFile(file)) {
                 System.out.println("[ARCHIVO] No existe el archivo: " + file.toAbsolutePath());
                 return;
             }
-
-            final String me = nickname;   // por si hace /logout mientras se envía
             Thread sender = new Thread(() -> {
                 long start = System.currentTimeMillis();
                 int[] count = {0};
                 try {
-                    System.out.println("[ARCHIVO] Enviando '" + file.getFileName() + "' a " + to + "...");
+                    System.out.println("[ARCHIVO] Enviando '" + file.getFileName() + "' a " + destino + "...");
                     FileChunker.split(file, chunk -> {
-                        server.sendFileChunkToUser(me, to, chunk);
+                        send.send(chunk);
                         count[0]++;
                     });
-                    System.out.println("[ARCHIVO] Enviado '" + file.getFileName() + "' a " + to + " ("
+                    System.out.println("[ARCHIVO] Enviado '" + file.getFileName() + "' a " + destino + " ("
                             + count[0] + " chunks, " + (System.currentTimeMillis() - start) + " ms)");
-                } catch (NotLoggedIn | UserNotFound e) {
+                } catch (ChatApp.ChatError e) {
+                    // atrapa todas las del contrato: UserNotFound, RoomNotFound, NotRoomMember, NotLoggedIn...
                     System.out.println("[ARCHIVO] " + e.reason);
                 } catch (com.zeroc.Ice.LocalException e) {
                     System.out.println("[ARCHIVO] Error de red enviando '" + file.getFileName() + "': " + e.ice_id());
